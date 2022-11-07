@@ -174,7 +174,8 @@ void Spline1DHelper<DataT>::approximateDataPoints(
       }
     }
   }
-
+std::cout<<"Hello! N points "<<nDataPoints<<std::endl;
+/*
   for (int iKnot = 0; iKnot < spline.getNumberOfKnots() - 2; ++iKnot) {
     const typename Spline1D<double>::Knot& knot0 = mSpline.getKnot(iKnot);
     const typename Spline1D<double>::Knot& knot1 = mSpline.getKnot(iKnot + 1);
@@ -210,6 +211,7 @@ void Spline1DHelper<DataT>::approximateDataPoints(
       }
     }
   } // iKnot
+*/
 
   band.solve();
 

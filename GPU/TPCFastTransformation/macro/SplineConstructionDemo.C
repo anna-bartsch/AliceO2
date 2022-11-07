@@ -70,8 +70,6 @@ double Flocal(double u)
 TCanvas* canv = new TCanvas("cQA", "Spline Demo", 1600, 800);
 
 bool doAskSteps = 1;
-bool drawLocal = 0;
-bool drawCheb = 0;
 bool drawConstruction = 1;
 
 bool ask()
@@ -79,8 +77,6 @@ bool ask()
   canv->Update();
   std::cout << "type: 'q'-exit";
   std::cout << ", 's'-individual steps";
-  std::cout << ", 'l'-local splines";
-  std::cout << ", 'c'-chebychev";
   std::cout << ", 'p'-construction points";
 
   std::cout << std::endl;
@@ -89,12 +85,8 @@ bool ask()
   std::getline(std::cin, str);
   if (str == "s") {
     doAskSteps = !doAskSteps;
-  } else if (str == "l") {
-    drawLocal = !drawLocal;
   } else if (str == "p") {
     drawConstruction = !drawConstruction;
-  } else if (str == "c") {
-    drawCheb = !drawCheb;
   }
 
   return (str != "q" && str != ".q");
@@ -118,11 +110,9 @@ int SplineConstructionDemo()
 
   gRandom->SetSeed(0);
 
-  TH1F* histDfBestFit = new TH1F("histDfBestFit", "Df BestFit", 100, -1., 1.);
-  TH1F* histDfCheb = new TH1F("histDfCheb", "Df Chebyshev", 100, -1., 1.);
-  TH1F* histMinMaxBestFit = new TH1F("histMinMaxBestFit", "MinMax BestFit", 100, -1., 1.);
-  TH1F* histMinMaxCheb = new TH1F("histMinMaxCheb", "MinMax Chebyshev", 100, -1., 1.);
-
+  TH1F* histDfSpline = new TH1F("histDfSpline", "Df Spline", 100, -1., 1.);
+  TH1F* histDfSpline1 = new TH1F("histDfSpline1", "Df Spline1", 100, -1., 1.);
+ 
   for (int seed = 12;; seed++) {
 
     // seed = gRandom->Integer(100000); // 605
@@ -134,18 +124,23 @@ int SplineConstructionDemo()
       Fcoeff[i] = gRandom->Uniform(-1, 1);
     }
 
+    TNtuple* drawPoints = new TNtuple("drawPoints", "drawPoints", "type:u:f");
+
     o2::gpu::Spline1D<float, 1> spline(nKnots);
     spline.approximateFunction(0, nKnots - 1, F, nAxiliaryPoints);
 
-    o2::gpu::Spline1D<float, 1> splineClassic(nKnots);
-    o2::gpu::Spline1DHelperOld<float> helper;
+    o2::gpu::Spline1D<float, 1> spline1(nKnots); // spline with missing data points          ---         with how many knots does it crash? ----
+    o2::gpu::Spline1DHelper<float> helper;
     {
       vector<double> vu, vy;
       for (int i = 0; i < nKnots; i += 1) {
         double u = spline.getKnot(i).u;
-        if (i > 0) {
+        if (i >= 1) {
           vu.push_back(u);
           vy.push_back(F1D(u));
+
+         /* vu.push_back(u + 0.6);
+          vy.push_back(F1D(u + 0.6)); */
         }
         if (i >= 0) {
 
@@ -158,73 +153,51 @@ int SplineConstructionDemo()
           */
         }
       }
-      helper.approximateDataPoints(splineClassic, 0, nKnots - 1, &vu[0], &vy[0], vu.size());
+      helper.approximateDataPoints(spline1, 0, nKnots - 1, &vu[0], &vy[0], vu.size());
+      for(int i=0; i<vu.size(); i++){
+        drawPoints->Fill(1, vu[i], vy[i]); 
+      }
     }
 
-    IrregularSpline1D splineLocal;
-    int nKnotsLocal = 2 * nKnots - 1;
-    splineLocal.constructRegular(nKnotsLocal);
-
-    std::unique_ptr<float[]> parametersLocal(new float[nKnotsLocal]);
-    for (int i = 0; i < nKnotsLocal; i++) {
-      parametersLocal[i] = Flocal(splineLocal.getKnot(i).u);
-    }
-    splineLocal.correctEdges(parametersLocal.get());
 
     spline.print();
-    splineLocal.print();
-
-    ROOT::Math::Functor1D func1D(&F1D);
-    ROOT::Math::ChebyshevApprox cheb(func1D, 0, nKnots - 1, nKnots + (nKnots - 1) * (nAxiliaryPoints)-1);
+    spline1.print();
 
     canv->Draw();
 
-    TNtuple* knots = new TNtuple("knots", "knots", "type:u:f");
-
     for (int i = 0; i < nKnots; i++) {
-      double u = splineClassic.getKnot(i).u;
-      double fs = splineClassic.interpolate(splineClassic.convUtoX(u));
-      knots->Fill(1, u, fs);
+      double u = spline1.getKnot(i).u;
+      double fs = spline1.interpolate(spline1.convUtoX(u));
+      drawPoints->Fill(2, u, fs);
     }
 
-    helper.setSpline(spline, 1, nAxiliaryPoints);
-    for (int j = 0; j < helper.getNumberOfDataPoints(); j++) {
-      const typename Spline1DHelperOld<float>::DataPoint& p = helper.getDataPoint(j);
+   for (int i = 0; i < nKnots; i++) {
+      double u = spline.getKnot(i).u;
+      double fs = spline.interpolate(spline.convUtoX(u));
+      drawPoints->Fill(4, u, fs);
+    }
+
+    o2::gpu::Spline1DHelperOld<float> helperOld;
+    helperOld.setSpline(spline, 1, nAxiliaryPoints);
+    for (int j = 0; j < helperOld.getNumberOfDataPoints(); j++) {
+      const typename Spline1DHelperOld<float>::DataPoint& p = helperOld.getDataPoint(j);
       double f0;
       F(p.u, &f0);
-      double fs = spline.interpolate(spline.convUtoX(p.u));
-      if (p.isKnot) {
-        knots->Fill(2, p.u, fs);
-      }
-      knots->Fill(3, p.u, f0);
-
-      double y = cos(M_PI * (j + 0.5) / (helper.getNumberOfDataPoints()));
-      double uCheb = 0.5 * (y * (nKnots - 1) + nKnots - 1);
-      double fCheb = cheb(uCheb, 2 * nKnots - 1);
-      knots->Fill(5, uCheb, fCheb);
+      double fs = spline.interpolate(spline.convUtoX(p.u));    
+      drawPoints->Fill(3, p.u, f0); // spline knos
     }
 
-    for (int i = 0; i < splineLocal.getNumberOfKnots(); i++) {
-      double u = splineLocal.getKnot(i).u;
-      double fs = splineLocal.getSpline(parametersLocal.get(), u);
-      knots->Fill(4, u * (nKnots - 1), fs);
-    }
-
-    TNtuple* nt = new TNtuple("nt", "nt", "u:f0:fBestFit:fClass:fLocal:fCheb");
+    TNtuple* nt = new TNtuple("nt", "nt", "u:f0:fSpline:fSpline1");
 
     float stepS = 1.e-4;
     int nSteps = (int)(1. / stepS + 1);
 
-    double statDfBestFit = 0;
-    double statDfClass = 0;
-    double statDfLocal = 0;
-    double statDfCheb = 0;
-
-    double statMinMaxBestFit = 0;
-    double statMinMaxClass = 0;
-    double statMinMaxLocal = 0;
-    double statMinMaxCheb = 0;
-
+    double statDfSpline = 0;
+    double statDfSpline1 = 0;
+  
+    double statMinMaxSpline = 0;
+    double statMinMaxSpline1 = 0;
+   
     double drawMax = -1.e20;
     double drawMin = 1.e20;
     int statN = 0;
@@ -232,41 +205,31 @@ int SplineConstructionDemo()
       double u = s * (nKnots - 1);
       double f0;
       F(u, &f0);
-      double fBestFit = spline.interpolate(spline.convUtoX(u));
-      double fClass = splineClassic.interpolate(splineClassic.convUtoX(u));
-      double fLocal = splineLocal.getSpline(parametersLocal.get(), s);
-      double fCheb = cheb(u, 2 * nKnots - 1);
-      nt->Fill(u, f0, fBestFit, fClass, fLocal, fCheb);
+      double fSpline = spline.interpolate(spline.convUtoX(u));
+      double fSpline1 = spline1.interpolate(spline1.convUtoX(u));
+       nt->Fill(u, f0, fSpline, fSpline1);
       drawMax = std::max(drawMax, (double)f0);
       drawMin = std::min(drawMin, (double)f0);
-      drawMax = std::max(drawMax, std::max(fBestFit, std::max(fClass, fLocal)));
-      drawMin = std::min(drawMin, std::min(fBestFit, std::min(fClass, fLocal)));
-      drawMax = std::max(drawMax, fCheb);
-      drawMin = std::min(drawMin, fCheb);
-      statDfBestFit += (fBestFit - f0) * (fBestFit - f0);
-      statDfClass += (fClass - f0) * (fClass - f0);
-      statDfLocal += (fLocal - f0) * (fLocal - f0);
-      statDfCheb += (fCheb - f0) * (fCheb - f0);
+      drawMax = std::max(drawMax, std::max(fSpline, fSpline1));
+      drawMin = std::min(drawMin, std::min(fSpline, fSpline1));
+      statDfSpline += (fSpline - f0) * (fSpline - f0);
+      statDfSpline1 += (fSpline1 - f0) * (fSpline1 - f0);
       statN++;
-      histDfBestFit->Fill(fBestFit - f0);
-      histDfCheb->Fill(fCheb - f0);
+      histDfSpline->Fill(fSpline - f0);
+      histDfSpline1->Fill(fSpline1 - f0);
 
-      statMinMaxBestFit = std::max(statMinMaxBestFit, fabs(fBestFit - f0));
-      statMinMaxClass = std::max(statMinMaxClass, fabs(fClass - f0));
-      statMinMaxLocal = std::max(statMinMaxLocal, fabs(fLocal - f0));
-      statMinMaxCheb = std::max(statMinMaxCheb, fabs(fCheb - f0));
-    }
+      statMinMaxSpline = std::max(statMinMaxSpline, fabs(fSpline - f0));
+      statMinMaxSpline1 = std::max(statMinMaxSpline1, fabs(fSpline1 - f0));
+     }
 
-    histMinMaxBestFit->Fill(statMinMaxBestFit);
-    histMinMaxCheb->Fill(statMinMaxCheb);
+    //histMinMaxSpline->Fill(statMinMaxSpline);
+    //histMinMaxSpline1->Fill(statMinMaxSpline1);
 
     std::cout << "\n"
               << std::endl;
     std::cout << "\nRandom seed: " << seed << " " << gRandom->GetSeed() << std::endl;
-    std::cout << "Classical : std dev " << sqrt(statDfClass / statN) << " minmax " << statMinMaxClass << std::endl;
-    std::cout << "Local     : std dev " << sqrt(statDfLocal / statN) << " minmax " << statMinMaxLocal << std::endl;
-    std::cout << "Best-fit  : std dev " << sqrt(statDfBestFit / statN) << " minmax " << statMinMaxBestFit << std::endl;
-    std::cout << "Chebyshev : std dev " << sqrt(statDfCheb / statN) << " minmax " << statMinMaxCheb << std::endl;
+    std::cout << "Spline : std dev " << sqrt(statDfSpline / statN) << " minmax " << statMinMaxSpline << std::endl;
+    std::cout << "Spline1     : std dev " << sqrt(statDfSpline1 / statN) << " minmax " << statMinMaxSpline1 << std::endl;
 
     /*
       canv->cd(1);
@@ -313,8 +276,8 @@ int SplineConstructionDemo()
     legend->AddEntry(l0, "Function to approximate", "L");
     legend->Draw();
 
-    knots->SetMarkerStyle(8);
-    knots->SetMarkerSize(1.5);
+    drawPoints->SetMarkerStyle(8);
+    drawPoints->SetMarkerSize(1.5);
 
     if (!askStep()) {
       break;
@@ -322,64 +285,33 @@ int SplineConstructionDemo()
 
     nt->SetMarkerSize(1.);
     nt->SetMarkerColor(kGreen + 2);
-    nt->Draw("fClass:u", "", "P,same");
+    nt->Draw("fSpline:u", "", "P,same");
 
-    knots->SetMarkerStyle(21);
-    knots->SetMarkerColor(kGreen + 2);
-    knots->SetMarkerSize(2.5);             // 5.
-    knots->Draw("f:u", "type==1", "same"); // Classical
+    drawPoints->SetMarkerStyle(21);
+    drawPoints->SetMarkerColor(kGreen + 2);
+    drawPoints->SetMarkerSize(2.5);             // 5.
+    drawPoints->Draw("f:u", "type==4", "same"); // Spline
     TNtuple* l1 = new TNtuple();
     l1->SetMarkerStyle(21);
     l1->SetMarkerColor(kGreen + 2);
     l1->SetMarkerSize(1.5); // 3.5
     l1->SetLineColor(kGreen + 2);
     l1->SetLineWidth(2.); // 5.
-    // legend->AddEntry(l1, Form("Interpolation spline (%d knots + %d slopes)", nKnots, nKnots), "LP");
-    legend->AddEntry(l1, "Interpolation spline", "LP");
+    // legend->AddEntry(l1, Form("Interpolation spline (%d drawPoints + %d slopes)", nKnots, nKnots), "LP");
+    legend->AddEntry(l1, "Best-fit spline", "LP");
     legend->Draw();
 
     if (!askStep()) {
       break;
     }
 
-    if (drawLocal) {
-      nt->SetMarkerColor(kMagenta);
-      nt->Draw("fLocal:u", "", "P,same");
-
-      knots->SetMarkerSize(1.5); // 2.5
-      knots->SetMarkerStyle(8);
-      knots->SetMarkerColor(kMagenta);
-      knots->Draw("f:u", "type==4", "same"); // local
-      TLine* l2 = new TLine();
-      l2->SetLineWidth(2); // 4
-      l2->SetLineColor(kMagenta);
-      legend->AddEntry(l2, Form("Local spline (%d knots)", 2 * nKnots - 1), "L");
-      legend->Draw();
-      if (!askStep()) {
-        break;
-      }
-    }
-    if (drawCheb) {
-      nt->SetMarkerColor(kBlue);
-      nt->Draw("fCheb:u", "", "P,same");
-      TLine* lCheb = new TLine();
-      lCheb->SetLineWidth(2); // 4
-      lCheb->SetLineColor(kBlue);
-      legend->AddEntry(lCheb, Form("Chebyshev (%d coeff)", 2 * nKnots), "L");
-      legend->Draw();
-
-      if (!askStep()) {
-        break;
-      }
-    }
-
     nt->SetMarkerColor(kRed);
-    nt->Draw("fBestFit:u", "", "P,same");
+    nt->Draw("fSpline1:u", "", "P,same");
 
-    knots->SetMarkerStyle(20);
-    knots->SetMarkerColor(kRed);
-    knots->SetMarkerSize(2.5);             // 5.
-    knots->Draw("f:u", "type==2", "same"); // best-fit splines
+    drawPoints->SetMarkerStyle(20);
+    drawPoints->SetMarkerColor(kRed);
+    drawPoints->SetMarkerSize(2.5);             // 5.
+    drawPoints->Draw("f:u", "type==2", "same"); // best-fit splines
 
     // TMarker * l3 = new TMarker();
     TNtuple* l3 = new TNtuple();
@@ -388,29 +320,43 @@ int SplineConstructionDemo()
     l3->SetMarkerSize(2.5); // 3.5
     l3->SetLineColor(kRed);
     l3->SetLineWidth(5.);
-    // legend->AddEntry(l3, Form("Best-fit spline (%d knots + %d slopes)", nKnots, nKnots), "PL");
-    legend->AddEntry(l3, "Best-fit spline", "PL");
+    // legend->AddEntry(l3, Form("Best-fit spline (%d drawPoints + %d slopes)", nKnots, nKnots), "PL");
+    legend->AddEntry(l3, "Best-fit spline 1", "PL");
     legend->Draw();
 
-    knots->SetMarkerStyle(8);
+    drawPoints->SetMarkerStyle(8);
 
     if (!askStep()) {
       break;
     }
 
     if (drawConstruction) {
-      knots->SetMarkerColor(kBlack);
-      knots->SetMarkerSize(1.5);
-      knots->SetMarkerStyle(8);
+      drawPoints->SetMarkerColor(kYellow);
+      drawPoints->SetMarkerSize(1.5);
+      drawPoints->SetMarkerStyle(8);
 
-      knots->Draw("f:u", "type==3", "same"); // best-fit data points
-      // knots->Draw("f:u", "type==5", "same"); // chebyshev, data points
+      drawPoints->Draw("f:u", "type==3", "same"); // best-fit data points
+      // drawPoints->Draw("f:u", "type==5", "same"); // chebyshev, data points
       TMarker* l4 = new TMarker;
       l4->SetMarkerStyle(8);
       l4->SetMarkerSize(1.5);
-      l4->SetMarkerColor(kBlack);
+      l4->SetMarkerColor(kYellow);
       legend->AddEntry(l4, "Construction points", "P");
       legend->Draw();
+
+      drawPoints->SetMarkerColor(kBlack);
+      drawPoints->SetMarkerSize(1.5);
+      drawPoints->SetMarkerStyle(8);
+
+      drawPoints->Draw("f:u", "type==1", "same"); // best-fit data points
+      // drawPoints->Draw("f:u", "type==5", "same"); // chebyshev, data points
+      TMarker* l5 = new TMarker;
+      l4->SetMarkerStyle(8);
+      l4->SetMarkerSize(1.5);
+      l4->SetMarkerColor(kBlack);
+      legend->AddEntry(l5, "Construction points", "P");
+      legend->Draw();
+ 
       if (!askStep()) {
         break;
       }

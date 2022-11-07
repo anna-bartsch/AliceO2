@@ -34,6 +34,7 @@ if(NOT ALIGPU_BUILD_TYPE STREQUAL "Standalone")
       Spline2DHelper.cxx
       SymMatrixSolver.cxx
       BandMatrixSolver.cxx
+      BandMatrix2dSolver.cxx
       devtools/IrregularSpline1D.cxx
       devtools/IrregularSpline2D3D.cxx
       devtools/SemiregularSpline2D3D.cxx

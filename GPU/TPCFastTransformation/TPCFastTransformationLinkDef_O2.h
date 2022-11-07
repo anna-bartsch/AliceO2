@@ -51,6 +51,7 @@
 #pragma link C++ class o2::gpu::ChebyshevFit1D + ;
 #pragma link C++ class o2::gpu::SymMatrixSolver + ;
 #pragma link C++ class o2::gpu::BandMatrixSolver < 0> + ;
+#pragma link C++ class o2::gpu::BandMatrix2dSolver + ;
 
 #pragma link C++ class o2::gpu::RegularSpline1D + ;
 #pragma link C++ class o2::gpu::IrregularSpline1D + ;

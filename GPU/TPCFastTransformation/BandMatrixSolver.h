@@ -24,6 +24,8 @@
 #include <cstdlib>
 #include <algorithm>
 #include <limits>
+#include <iostream>
+#include <math.h>
 
 namespace GPUCA_NAMESPACE
 {
@@ -130,6 +132,10 @@ inline void BandMatrixSolver<BandWidthT>::triangulateBlock(double AA[], double b
     double* A = AA;
     for (int rows = 0; rows < nRows; rows++) {
       double c = 1. / A[0];
+      if(!std::isfinite(c) ){
+        std::cout<<"\n\nCan not construct spline! \n\n"<<std::endl;
+        c = 0.;
+      }
       A[0] = c; // store 1/a[0][0]
       double* rowi = A + BandWidthT - 1;
       for (int i = 1; i < m; i++) { // row 0+i
