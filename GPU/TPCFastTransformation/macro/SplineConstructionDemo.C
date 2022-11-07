@@ -117,6 +117,7 @@ int SplineConstructionDemo()
 
     // seed = gRandom->Integer(100000); // 605
 
+    // construct the function
     gRandom->SetSeed(seed);
     std::cout << "Random seed: " << seed << " " << gRandom->GetSeed() << std::endl;
 
@@ -126,33 +127,31 @@ int SplineConstructionDemo()
 
     TNtuple* drawPoints = new TNtuple("drawPoints", "drawPoints", "type:u:f");
 
+    // spline with many data points
     o2::gpu::Spline1D<float, 1> spline(nKnots);
     spline.approximateFunction(0, nKnots - 1, F, nAxiliaryPoints);
 
+    // spline with a few data poiunts
     o2::gpu::Spline1D<float, 1> spline1(nKnots); // spline with missing data points          ---         with how many knots does it crash? ----
     o2::gpu::Spline1DHelper<float> helper;
     {
-      vector<double> vu, vy;
+      vector<double> vu;        
+      /*
       for (int i = 0; i < nKnots; i += 1) {
-        double u = spline.getKnot(i).u;
-        if (i >= 1) {
-          vu.push_back(u);
-          vy.push_back(F1D(u));
-
-         /* vu.push_back(u + 0.6);
-          vy.push_back(F1D(u + 0.6)); */
-        }
-        if (i >= 0) {
-
-          vu.push_back(u + 0.5);
-          vy.push_back(F1D(u + 0.5));
-
-          /*
-          vu.push_back(u + 0.6);
-          vy.push_back(F1D(u + 0.6));
-          */
+        vu.push_back(u);
+        if( i<nKnots-1){
+        vu.push_back(u+0.2);
+        vu.push_back(u+0.6);
         }
       }
+      */
+      vu = {0.,0.2, 0.5, 1., 2., 2.5, 2.7, 3.};
+
+      vector<double> vy;        
+      for (unsigned int i = 0; i < vu.size(); i++) {
+        vy.push_back(F1D(vu[i]));
+      }
+             
       helper.approximateDataPoints(spline1, 0, nKnots - 1, &vu[0], &vy[0], vu.size());
       for(int i=0; i<vu.size(); i++){
         drawPoints->Fill(1, vu[i], vy[i]); 

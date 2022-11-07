@@ -174,7 +174,9 @@ void Spline1DHelper<DataT>::approximateDataPoints(
       }
     }
   }
-std::cout<<"Hello! N points "<<nDataPoints<<std::endl;
+
+  std::cout<<"Spline1DHelper: ApproximateDataPoints: N data points "<<nDataPoints<<std::endl;
+
 /*
   for (int iKnot = 0; iKnot < spline.getNumberOfKnots() - 2; ++iKnot) {
     const typename Spline1D<double>::Knot& knot0 = mSpline.getKnot(iKnot);

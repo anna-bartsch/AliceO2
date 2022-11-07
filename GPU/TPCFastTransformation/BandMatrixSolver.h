@@ -133,7 +133,7 @@ inline void BandMatrixSolver<BandWidthT>::triangulateBlock(double AA[], double b
     for (int rows = 0; rows < nRows; rows++) {
       double c = 1. / A[0];
       if(!std::isfinite(c) ){
-        std::cout<<"\n\nCan not construct spline! \n\n"<<std::endl;
+        std::cout<<"\n\nBandMatrixSover: Can not construct spline! \n\n"<<std::endl;
         c = 0.;
       }
       A[0] = c; // store 1/a[0][0]
