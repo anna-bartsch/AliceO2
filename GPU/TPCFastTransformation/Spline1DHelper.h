@@ -52,7 +52,7 @@ class Spline1DHelper
   /// _______________  Main functionality  ________________________
 
   /// Create best-fit spline parameters for a set of data points
-  void approximateDataPoints(Spline1DContainer<DataT>& spline,
+  bool approximateDataPoints(Spline1DContainer<DataT>& spline,
                              double xMin, double xMax,
                              const double vx[], const double vf[], int nDataPoints);
 

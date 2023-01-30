@@ -112,7 +112,7 @@ int SplineConstructionDemo()
 
   TH1F* histDfSpline = new TH1F("histDfSpline", "Df Spline", 100, -1., 1.);
   TH1F* histDfSpline1 = new TH1F("histDfSpline1", "Df Spline1", 100, -1., 1.);
- 
+
   for (int seed = 12;; seed++) {
 
     // seed = gRandom->Integer(100000); // 605
@@ -131,11 +131,11 @@ int SplineConstructionDemo()
     o2::gpu::Spline1D<float, 1> spline(nKnots);
     spline.approximateFunction(0, nKnots - 1, F, nAxiliaryPoints);
 
-    // spline with a few data poiunts
-    o2::gpu::Spline1D<float, 1> spline1(nKnots); // spline with missing data points          ---         with how many knots does it crash? ----
+    // spline with a few data points
+    o2::gpu::Spline1D<float, 1> spline1(nKnots); // Anna: spline with missing data points          ---         with how many knots does it crash? ----
     o2::gpu::Spline1DHelper<float> helper;
     {
-      vector<double> vu;        
+      vector<double> vu;
       /*
       for (int i = 0; i < nKnots; i += 1) {
         vu.push_back(u);
@@ -145,19 +145,61 @@ int SplineConstructionDemo()
         }
       }
       */
-      vu = {0.,0.2, 0.5, 1., 2., 2.5, 2.7, 3.};
+      vu = {0., 0.5, 0.9, 1.1, 1.7, 1.5};//, 2.9};
 
-      vector<double> vy;        
+      vector<double> vy;
       for (unsigned int i = 0; i < vu.size(); i++) {
         vy.push_back(F1D(vu[i]));
       }
-             
-      helper.approximateDataPoints(spline1, 0, nKnots - 1, &vu[0], &vy[0], vu.size());
-      for(int i=0; i<vu.size(); i++){
-        drawPoints->Fill(1, vu[i], vy[i]); 
-      }
-    }
 
+      helper.approximateDataPoints(spline1, 0, nKnots - 1, &vu[0], &vy[0], vu.size());
+      for (int i = 0; i < vu.size(); i++) {
+        drawPoints->Fill(1, vu[i], vy[i]);
+      }
+
+      //---------------------------------------------test anna--------------------------
+
+      int nIntervals = spline1.getNumberOfKnots() - 1;
+
+      std::vector<int> nDataPerInterval(nIntervals, 0); //bei drei plus 1 anstatt plus 2? Testprogramm schreiben, verschiedene Szenarien durchrechnen
+
+      for (int i = 0; i < vu.size(); i++) {
+        int interval = spline1.getLeftKnotIndexForU(vu[i]); //is the data point in this interval? like this, a border point is only counted for the first interval
+                       nDataPerInterval[interval]++;
+      }
+
+      bool isChanged = 1;
+      while (isChanged) {
+        isChanged = 0;
+        for (int j = 0; j < nIntervals; j++) {
+          if (nDataPerInterval[j] >= 4) {
+            if (j > 0) { //if it exists
+              nDataPerInterval[j - 1] += 2;
+            }
+            if (j < nIntervals - 1) { //if it exists
+              nDataPerInterval[j + 1] += 2;
+            }
+            nDataPerInterval[j] = -10; //because we don't want it to increase the neighbours again; a value can be incremented twice per run
+            isChanged = 1;
+          }
+        }
+        for (int j = 0; j < nIntervals - 1; j++) {
+          if (nDataPerInterval[j] == 3 && nDataPerInterval[j + 1] == 3) {
+            nDataPerInterval[j] = 4;
+            nDataPerInterval[j + 1] = 4;
+          }
+        }
+      }
+
+      for (int i = 0; i < nIntervals; i++) {
+        if (nDataPerInterval[i] < 4 && nDataPerInterval[i] >= 0) {
+          cout << "Interval " << i << " has only " << nDataPerInterval[i] << " data points" << endl;
+          //vector mit tuple Problemstelle und Anzahl Punkte?
+        }
+      }
+
+      //-------------------------------------end of test--------------------------------------------
+    }
 
     spline.print();
     spline1.print();
@@ -170,7 +212,7 @@ int SplineConstructionDemo()
       drawPoints->Fill(2, u, fs);
     }
 
-   for (int i = 0; i < nKnots; i++) {
+    for (int i = 0; i < nKnots; i++) {
       double u = spline.getKnot(i).u;
       double fs = spline.interpolate(spline.convUtoX(u));
       drawPoints->Fill(4, u, fs);
@@ -182,7 +224,7 @@ int SplineConstructionDemo()
       const typename Spline1DHelperOld<float>::DataPoint& p = helperOld.getDataPoint(j);
       double f0;
       F(p.u, &f0);
-      double fs = spline.interpolate(spline.convUtoX(p.u));    
+      double fs = spline.interpolate(spline.convUtoX(p.u));
       drawPoints->Fill(3, p.u, f0); // spline knos
     }
 
@@ -193,10 +235,10 @@ int SplineConstructionDemo()
 
     double statDfSpline = 0;
     double statDfSpline1 = 0;
-  
+
     double statMinMaxSpline = 0;
     double statMinMaxSpline1 = 0;
-   
+
     double drawMax = -1.e20;
     double drawMin = 1.e20;
     int statN = 0;
@@ -206,7 +248,7 @@ int SplineConstructionDemo()
       F(u, &f0);
       double fSpline = spline.interpolate(spline.convUtoX(u));
       double fSpline1 = spline1.interpolate(spline1.convUtoX(u));
-       nt->Fill(u, f0, fSpline, fSpline1);
+      nt->Fill(u, f0, fSpline, fSpline1);
       drawMax = std::max(drawMax, (double)f0);
       drawMin = std::min(drawMin, (double)f0);
       drawMax = std::max(drawMax, std::max(fSpline, fSpline1));
@@ -219,7 +261,7 @@ int SplineConstructionDemo()
 
       statMinMaxSpline = std::max(statMinMaxSpline, fabs(fSpline - f0));
       statMinMaxSpline1 = std::max(statMinMaxSpline1, fabs(fSpline1 - f0));
-     }
+    }
 
     //histMinMaxSpline->Fill(statMinMaxSpline);
     //histMinMaxSpline1->Fill(statMinMaxSpline1);
@@ -355,7 +397,7 @@ int SplineConstructionDemo()
       l4->SetMarkerColor(kBlack);
       legend->AddEntry(l5, "Construction points", "P");
       legend->Draw();
- 
+
       if (!askStep()) {
         break;
       }

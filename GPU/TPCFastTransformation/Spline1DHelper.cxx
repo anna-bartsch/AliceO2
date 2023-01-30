@@ -132,7 +132,7 @@ void Spline1DHelper<DataT>::getDDDScoefficients(const typename Spline1D<double>:
 }
 
 template <typename DataT>
-void Spline1DHelper<DataT>::approximateDataPoints(
+bool Spline1DHelper<DataT>::approximateDataPoints(
   Spline1DContainer<DataT>& spline,
   double xMin, double xMax,
   const double vx[], const double vf[], int nDataPoints)
@@ -175,9 +175,46 @@ void Spline1DHelper<DataT>::approximateDataPoints(
     }
   }
 
-  std::cout<<"Spline1DHelper: ApproximateDataPoints: N data points "<<nDataPoints<<std::endl;
+  std::cout << "Spline1DHelper: ApproximateDataPoints: N data points " << nDataPoints << std::endl;
 
-/*
+  //Anna: check if we need the smouthness below or not, how many data points do we need? Add only extra smouthness where you need extra knots?
+
+  //First create an array with the number of data points per spline interval
+  /* //lieber in SplineConstructionDemo.C?
+  int nIntervals = spline1.getNumberOfKnots() - 1;
+
+  std::vector<int> nDataPerInterval(nIntervals, 0); //bei drei plus 1 anstatt plus 2? Testprogramm schreiben, verschiedene Szenarien durchrechnen
+
+  for (int i = 0; i < vu.size(); i++) {
+    int interval = spline1.getLeftKnotIndexForU(vu[i]) //is the data point in this interval? like this, a border point is only counted for the first interval
+                   nDataPerInterval[interval]++;
+  }
+
+  bool isChanged = 1;
+  while (isChanged) {
+    isChanged = 0;
+    for (int j = 0; j < nIntervals; j++) {
+      if (nDataPerInterval[j] >= 4) {
+        if (j > 0) { //if it exists
+          nDataPerInterval[j - 1] += 2; 
+        }
+        if (j < nIntervals - 1) { //if it exists
+          nDataPerInterval[j + 1] += 2; 
+        }
+        nDataPerInterval[j] = -10; //because we don't want it to increase the neighbours again; a value can be incremented twice per run
+        isChanged = 1;
+      }
+    }
+  }
+
+  for (int i = 0; i < nIntervals; i++) {
+    if (nDataPerInterval[i] < 4 && nDataPerInterval[i] >= 0) {
+      cout << "Interval " << i << "has only " << nDataPerInterval[i] << " data points" << endl;
+      //vector mit tuple Problemstelle und Anzahl Punkte?
+    }
+  }
+*/
+  /*
   for (int iKnot = 0; iKnot < spline.getNumberOfKnots() - 2; ++iKnot) {
     const typename Spline1D<double>::Knot& knot0 = mSpline.getKnot(iKnot);
     const typename Spline1D<double>::Knot& knot1 = mSpline.getKnot(iKnot + 1);
@@ -222,6 +259,7 @@ void Spline1DHelper<DataT>::approximateDataPoints(
       spline.getParameters()[i * nYdim + j] = band.B(i, j);
     }
   }
+  return !band.isFailed;
 }
 
 template <typename DataT>

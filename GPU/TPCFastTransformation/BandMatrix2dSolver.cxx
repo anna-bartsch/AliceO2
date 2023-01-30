@@ -31,7 +31,7 @@ ClassImp(GPUCA_NAMESPACE::gpu::BandMatrix2dSolver);
 void BandMatrix2dSolver::solve()
 {
   std::cout<<" hello "<<std::endl;
-  
+  // Anna
   // Upper Triangulization
   for (int i = 0; i < mN; i++) { //wir gehen die Spalten durch
     double* rowI = &mA[i * mShift]; //pointer to the first A element in row i

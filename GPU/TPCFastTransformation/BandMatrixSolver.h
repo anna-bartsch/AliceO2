@@ -102,6 +102,8 @@ class BandMatrixSolver
     return BandMatrixSolver<0>::test(prn);
   }
 
+  bool isFailed = false;
+
  private:
   template <int nRows>
   void triangulateBlock(double AA[], double bb[]);
@@ -132,8 +134,10 @@ inline void BandMatrixSolver<BandWidthT>::triangulateBlock(double AA[], double b
     double* A = AA;
     for (int rows = 0; rows < nRows; rows++) {
       double c = 1. / A[0];
-      if(!std::isfinite(c) ){
-        std::cout<<"\n\nBandMatrixSover: Can not construct spline! \n\n"<<std::endl;
+      //std::cout<<A[0]<<std::endl;
+      if (!std::isfinite(c) || fabs(A[0])<1.e-15 ) {
+        isFailed = true;
+        //std::cout << "\n\nBandMatrixSover: Can not construct spline! \n\n" << std::endl;
         c = 0.;
       }
       A[0] = c; // store 1/a[0][0]
@@ -193,6 +197,8 @@ inline void BandMatrixSolver<BandWidthT>::solve()
 {
   /// Solution slover
 
+  isFailed = false;
+
   const int stepA = BandWidthT;
   const int stepB = mBdim;
   // Upper Triangulization
@@ -237,6 +243,7 @@ inline void BandMatrixSolver<BandWidthT>::solveType1()
   ///     (     0++**)
   ///     (      +++*)
   ///
+  isFailed = false;
 
   const int stepA = 2 * BandWidthT;
   const int stepB = 2 * mBdim;
