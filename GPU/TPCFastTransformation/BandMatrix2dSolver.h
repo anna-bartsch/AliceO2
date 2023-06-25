@@ -47,6 +47,7 @@ class BandMatrix2dSolver
   /// access to A elements
   double& A(int i, int j)
   {
+    //return mA[i * mShift + j];
     auto ij = std::minmax(i, j);
     assert(ij.first >= 0 && ij.second < mN);
     return mA[ij.first * mShift + ij.second];
@@ -68,6 +69,9 @@ class BandMatrix2dSolver
   /// Test the class functionality. Returns 1 when ok, 0 when not ok
   static int test(bool prn = 0);
 
+ bool isFailed = false;
+
+ 
  private:
  private:
   int mN = 0;

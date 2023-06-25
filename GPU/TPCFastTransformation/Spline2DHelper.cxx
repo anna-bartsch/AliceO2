@@ -324,12 +324,14 @@ void Spline2DHelper<DataT>::getScoefficients(int iu, int iv, double u, double v,
 }
 
 template <typename DataT>
-void Spline2DHelper<DataT>::approximateDataPoints(
+bool Spline2DHelper<DataT>::approximateDataPoints(
   Spline2DContainer<DataT>& spline, double x1Min, double x1Max, double x2Min, double x2Max,
   const double dataPointX1[], const double dataPointX2[], const double dataPointF[/*getNumberOfDataPoints() x nFdim*/],
-  int nDataPoints)
+  int nDataPoints, bool doPrint)
 {
   /// Create best-fit spline parameters for a given input function F
+
+  bool ok = 0;
 
   setGrid(spline, x1Min, x1Max, x2Min, x2Max);
 
@@ -339,7 +341,7 @@ void Spline2DHelper<DataT>::approximateDataPoints(
 
   const int nPar = 4 * spline.getNumberOfKnots(); // n parameters for 1-dimensional F
 
-  BandMatrix2dSolver solver(nPar, nFdim, 4*nu);
+  BandMatrix2dSolver solver(nPar, nFdim, 4 * nu);
 
   for (int iPoint = 0; iPoint < nDataPoints; ++iPoint) {
     double u = fGridU.convXtoU(dataPointX1[iPoint]);
@@ -366,8 +368,7 @@ void Spline2DHelper<DataT>::approximateDataPoints(
     }
   } // data points
 
-
-/*  // don't use this for a moment
+  /*  // don't use this for a moment
   // add extra smoothness for a case some data is missing
   for (int iu = 0; iu < nu - 1; iu++) {
     for (int iv = 0; iv < nv - 1; iv++) {
@@ -399,25 +400,40 @@ void Spline2DHelper<DataT>::approximateDataPoints(
     }
   } 
 */
-
-std::cout << "Ausgabe der Matrix" << std::endl;
-for (int i = 0; i < nPar; i+=4){
-  for (int j = 0; j < nPar; j+=4) {
-    std::cout << ( (solver.A(i,j) == 0.) ? "." :"X") << " ";
+  if (doPrint) {
+    std::cout << "Ausgabe der Matrix" << std::endl;
+    for (int i = 0; i < nPar; i += 4) {
+      for (int j = 0; j < nPar; j += 4) {
+        int count = 0;
+        for (int ii = i; ii < i + 4; ii++) {
+          for (int jj = j; jj < j + 4; jj++) {
+            if (solver.A(ii, jj) != 0.)
+              count++;
+          }
+        }
+        if (count == 0) {
+          std::cout << ".";
+        } else if (count == 16) {
+          std::cout << "X";
+        } else {
+          std::cout << "Y";
+        }
+        std::cout << " ";
+      }
+      std::cout << std::endl;
+    }
+    std::cout << std::endl;
   }
-  std::cout << std::endl;
-}
-  std::cout << std::endl;
 
-
-
- // Anna: speed up this
+  // Anna: speed up this
   solver.solve();
+  ok = !solver.isFailed;
   for (int i = 0; i < nPar; i++) {
     for (int iDim = 0; iDim < nFdim; iDim++) { //der Reihe nach mit den Dimensionen
       spline.getParameters()[i * nFdim + iDim] = solver.B(i, iDim);
     }
   }
+  return ok;
 }
 
 #ifndef GPUCA_ALIROOT_LIB
@@ -432,7 +448,7 @@ int Spline2DHelper<DataT>::test(const bool draw, const bool drawDataPoints)
 
   double Fcoeff[Ndim][4 * (Fdegree + 1) * (Fdegree + 1)];
 
-  constexpr int nKnotsU = 10, nKnotsV=10; // ------------------------------------wieder setzen auf  ----------------------->  10?
+  constexpr int nKnotsU = 10, nKnotsV = 10; // ------------------------------------wieder setzen auf  ----------------------->  10?
   constexpr int nAuxiliaryPoints = 2;
   constexpr int uMax = nKnotsU; //* 3;
   constexpr int vMax = nKnotsV; //* 3;
@@ -509,14 +525,14 @@ int Spline2DHelper<DataT>::test(const bool draw, const bool drawDataPoints)
     int knotsU[nKnotsU], knotsV[nKnotsV];
     do {
       double du = 1. * uMax / (nKnotsU - 1);
-      for (int i = 1; i < nKnotsU-1; i++) {
+      for (int i = 1; i < nKnotsU - 1; i++) {
         knotsU[i] = (int)(i * du); // + gRandom->Uniform(-du / 3, du / 3);
       }
       knotsU[0] = 0;
       knotsU[nKnotsU - 1] = uMax;
 
       double dv = 1. * vMax / (nKnotsV - 1);
-      for (int i = 1; i < nKnotsV-1; i++) {
+      for (int i = 1; i < nKnotsV - 1; i++) {
         knotsV[i] = (int)(i * dv); // + gRandom->Uniform(-du / 3, du / 3);
       }
       knotsV[0] = 0;
@@ -526,7 +542,7 @@ int Spline2DHelper<DataT>::test(const bool draw, const bool drawDataPoints)
 
       if (nKnotsU != spline.getGridX1().getNumberOfKnots() ||
           nKnotsV != spline.getGridX2().getNumberOfKnots()) {
-        LOG(info) << "warning: n knots changed during the initialisation " << nKnotsU*nKnotsV
+        LOG(info) << "warning: n knots changed during the initialisation " << nKnotsU * nKnotsV
                   << " -> " << spline.getNumberOfKnots();
         continue;
       }
