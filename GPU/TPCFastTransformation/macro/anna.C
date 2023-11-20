@@ -177,18 +177,18 @@ int anna()
     {
       constructionOk = helper.approximateDataPoints(spline, 0, nKnots - 1, &vu[0], &vy[0], vu.size());
 
-      int nKnots = spline.getNumberOfKnots();
-      int nIntervals = nKnots - 1;
+      int nKnots = spline.getNumberOfKnots();  //number of knots
+      int nIntervals = nKnots - 1;  //number of intervals between the knots
 
-      std::vector<int> nDataPerInterval(nIntervals, 0);            //bei drei plus 1 anstatt plus 2? Testprogramm schreiben, verschiedene Szenarien durchrechnen
-      std::vector<int> nDataPerKnot(spline.getNumberOfKnots(), 0); // <---
+      std::vector<int> nDataPerInterval(nIntervals, 0);  //it will store the number of data points per interval
+      std::vector<int> nDataPerKnot(spline.getNumberOfKnots(), 0);  //it will store how many data points every knot gets
 
-      for (int i = 0; i < vu.size(); i++) {
-        int interval = spline.getLeftKnotIndexForU(vu[i]); //is the data point in this interval? like this, a border point is only counted for the first interval
+      for (int i = 0; i < vu.size(); i++) { //nDataPerInterval is filled
+        int interval = spline.getLeftKnotIndexForU(vu[i]); //a border point is only counted for the first interval
         nDataPerInterval[interval]++;
       }
 
-      for (int i = 0; i < nIntervals; i++) {
+      for (int i = 0; i < nIntervals; i++) {  //the data points are being distributed among the knots
         int s0 = 2 - nDataPerKnot[i];
         int n0 = std::min(s0, nDataPerInterval[i]);
         int n1 = std::min(2, nDataPerInterval[i] - n0);
@@ -196,11 +196,10 @@ int anna()
         nDataPerKnot[i + 1] = n1;
       }
 
-      for (int i = 0; i < nKnots; i++) {
+      for (int i = 0; i < nKnots; i++) {  //checking if every knot has enough data points
         if (nDataPerKnot[i] < 2) {
           testAnna = 0;
           cout << "Knot " << i << " has only " << nDataPerKnot[i] << " data points" << endl;
-          //vector mit tuple Problemstelle und Anzahl Punkte?
         }
       }
     }

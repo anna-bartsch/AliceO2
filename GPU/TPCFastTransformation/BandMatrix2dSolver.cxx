@@ -38,8 +38,9 @@ ClassImp(GPUCA_NAMESPACE::gpu::BandMatrix2dSolver);
 void BandMatrix2dSolver::solve(){
 
   int fullBandSize = 8+mBandShift+12; // size of the band, including the diagonal element
+
   // Upper Triangulization
-  for (int i = 0; i < mN; i++) { //wir gehen die Spalten durch
+  for (int i = 0; i < mN; i++) { //iterating over the columns
     double* rowI = &mA[i * mShift]; //pointer to the first A element in row i
     double* rowIb = &mA[i * mShift + mN]; //pointer to the first B element in row i
     double aii = rowI[i]; // diagonal element
@@ -81,45 +82,47 @@ void BandMatrix2dSolver::solve(){
 
   }
 }
+
+
+
+
+
+
 */
 
 
 
 ///*
-//Annas Code ohne Dreieck
+//Annas final Code
 
 
 void BandMatrix2dSolver::solve(){
+
   isFailed = false;
-  int fullBandSize = 8+mBandShift+12; // size of the band, including the diagonal elementfabs
-  // Upper Triangulization
-  for (int i = 0; i < mN; i++) { //wir gehen die Spalten durch
+  int fullBandSize = 8+mBandShift+12; // size of the band, including the diagonal element
+
+  // Upper Triangulation
+  for (int i = 0; i < mN; i++) { //iterating over the columns
     double* rowI = &mA[i * mShift]; //pointer to the first A element in row i
     double* rowIb = &mA[i * mShift + mN]; //pointer to the first B element in row i
-
     double c = 1. / rowI[i]; // 1 / diagonal element
-    //std::cout<<A[0]<<std::endl;
-    if (!std::isfinite(c) || !std::isfinite(rowI[i]) || fabs(rowI[i]) < 1.e-15 ) {
+    if (!std::isfinite(c) || !std::isfinite(rowI[i]) || fabs(rowI[i]) < 1.e-15 ) { //checking if the spline can be constructed
       isFailed = true;
       //std::cout << "\n\nBandMatrixSover: Can not construct spline! \n\n" << std::endl;
       c = 0.;
     }
-
     double* rowJ = rowI + mShift; //row beneath row i
-
-    for (int j = i + 1; j<i+fullBandSize && j<mN; j++, rowJ += mShift) { // NEU: keine Bänder mehr (j<i+8) (statt nur j<mN, nKnots muss noch berücksichtigt werden..) i+1 and rowJ goes one row down, die Reihen werden durchgegangen
-     // if (rowI[j] != 0.) {
-      double aij = c * rowI[j]; // A[i][j] / A[i][i] , der neue Wert von rowI[j]
-      for (int k = j; k<j+fullBandSize && k<mN; k++) { //NEU: kein k<mShift sondern auch nur bis zum Ende des letzten Bandes -> wir wissen auch hier, wo die Nullen sind
-        rowJ[k] -= aij * rowI[k]; // A[j][k] -= A[i][k]/A[i][i]*A[j][i] //muss das nicht rowJ[i] sein? oder egal weil symmetrisch? von den Elementen unter row i werden die gewichteten Werte von i abgezogen, um vorne eine 0 zu bekommen 
+    for (int j = i + 1; j<i+fullBandSize && j<mN; j++, rowJ += mShift) { //iterating over the rows, but only to the end of the band
+      double aij = c * rowI[j]; // A[i][j] / A[i][i], saving the new entry of rowI[j]
+      for (int k = j; k<j+fullBandSize && k<mN; k++) { // iterating over the columns of row j till the end of the band
+        rowJ[k] -= aij * rowI[k]; // A[j][k] -= A[i][k]/A[i][i]*A[j][i] //using rowI[k] because of the symmetry, instead of rowJ[i] 
       }
-      for (int k = mN; k<mShift; k++) { //NEU: kein k<mShift sondern auch nur bis zum Ende des letzten Bandes -> wir wissen auch hier, wo die Nullen sind
-        rowJ[k] -= aij * rowI[k]; // A[j][k] -= A[i][k]/A[i][i]*A[j][i] //muss das nicht rowJ[i] sein? oder egal weil symmetrisch? von den Elementen unter row i werden die gewichteten Werte von i abgezogen, um vorne eine 0 zu bekommen 
+      for (int k = mN; k<mShift; k++) { //continuing with the entries of B
+        rowJ[k] -= aij * rowI[k]; // A[j][k] -= A[i][k]/A[i][i]*A[j][i]
       }
-      rowI[j] = aij; // A[i][j] /= A[i][i] //der neue Wert für die Zahl in Zeile i, bei der ihr symmetrischer Wert gerade null gemacht wurde
-     // }
+      rowI[j] = aij; // A[i][j] /= A[i][i] //as the symmetric entry is 0 now, the new entry of rowI[j] can be saved now
     }
-    for (int k = 0; k < mM; k++) { //die neuen b Werte mittels Teilen durch Diagonalwert
+    for (int k = 0; k < mM; k++) { //the new entry of B
       rowIb[k] *= c;
     }
   }
@@ -128,24 +131,21 @@ void BandMatrix2dSolver::solve(){
   for (int i = mN - 1; i >= 0; i--) {
     double* rowIb = &mA[i * mShift + mN]; //pointer to the first B element in row i
     double* rowJb = rowIb - mShift; //pointer to the first B element one row above row i
-    //Band 1
-    for (int j = i - 1; j >= 0 && j >i-fullBandSize ; j--, rowJb -= mShift) { // NEU: nicht mehr j>=i-8  row j
-      double aji = mA[j * mShift + i]; //die Schleife geht ab dem Diagonalelement und die Spalte darüber ab
-      //if (aji != 0.) {
-        for (int k = 0; k < mM; k++) {
-          rowJb[k] -= aji * rowIb[k]; 
-        }
-      //}
+    for (int j = i - 1; j >= 0 && j > i-fullBandSize ; j--, rowJb -= mShift) { //iterating over the rows above the diagonal element
+      double aji = mA[j * mShift + i];
+      for (int k = 0; k < mM; k++) {
+        rowJb[k] -= aji * rowIb[k];  //the new entry of B
+      }
     }
   }
 }
+
 
 //*/
 
 
 //Annas Code mit Dreieck
 /*
-
 void BandMatrix2dSolver::solve(){
 
   // Upper Triangulization
@@ -224,7 +224,6 @@ void BandMatrix2dSolver::solve(){
 
    
 
-
 /*
 // original solver in easy language without division
 void BandMatrix2dSolver::solve()
@@ -276,29 +275,36 @@ void BandMatrix2dSolver::solve()
 {
   //printing the matrix with 0 and touched entries
 
-  double Matrix[mN][mN];
-  for (int i = 0; i < mN; i++) {
-    for (int j = 0; j < mN; j++) {
-      Matrix[i][j]=0;
-    }
-    Matrix[i][i]= 2;
-  } 
+  //double Matrix[mN][mN];
+  //for (int i = 0; i < mN; i++) {
+    //for (int j = 0; j < mN; j++) {
+      //Matrix[i][j]=0;
+    //}
+    //Matrix[i][i]= 2;
+  //} 
 
   // Upper Triangulization
   for (int i = 0; i < mN; i++) {
     double* rowI = &mA[i * mShift];
     double* rowIb = &mA[i * mShift + mN];
     double c = 1. / rowI[i];
+    if (!std::isfinite(c) || !std::isfinite(rowI[i]) || fabs(rowI[i]) < 1.e-15 ) {
+      isFailed = true;
+      //std::cout << "\n\nBandMatrixSover: Can not construct spline! \n\n" << std::endl;
+      c = 0.;
+    }
+
     double* rowJ = rowI + mShift;
     for (int j = i + 1; j < mN; j++, rowJ += mShift) { // row j
-      //if (rowI[j] != 0.) {
-        if (A(i,j)!=0 && Matrix[i][j]==0) Matrix[i][j] = 1; //Test für Ausgabe
+      if (rowI[j] != 0.) 
+      {
+        //if (A(i,j)!=0 && Matrix[i][j]==0) Matrix[i][j] = 1; //Test für Ausgabe
         double aij = c * rowI[j]; // A[i][j] / A[i][i]
         for (int k = j; k < mShift; k++) {
           rowJ[k] -= aij * rowI[k]; // A[j][k] -= A[i][k]/A[i][i]*A[j][i]
         }
         rowI[j] = aij; // A[i][j] /= A[i][i]
-      //}
+      }
     }    
     for (int k = 0; k < mM; k++) {
       rowIb[k] *= c;
@@ -310,23 +316,23 @@ void BandMatrix2dSolver::solve()
     double* rowIb = &mA[i * mShift + mN];
     double* rowJb = rowIb - mShift;
     for (int j = i - 1; j >= 0; j--, rowJb -= mShift) { // row j
-    if (A(i,j)!=0 && Matrix[i][j]==0) Matrix[i][j] = 1; //Test für Ausgabe
+       //if (A(i,j)!=0 && Matrix[i][j]==0) Matrix[i][j] = 1; //Test für Ausgabe
       double aji = mA[j * mShift + i];
-      //if (aji != 0.) {
+      if (aji != 0.) 
+      {
         for (int k = 0; k < mM; k++) {
           rowJb[k] -= aji * rowIb[k];
         }
-      //}
+      }
     }
   } 
-  
-  for (int i = 0; i < mN; i++) {
-    for (int j = 0; j < mN; j++) {
-      cout << Matrix[i][j] << " ";
-    }
-    cout << endl;
-  } 
-  
+
+  //for (int i = 0; i < mN; i++) {
+    //for (int j = 0; j < mN; j++) {
+      //cout << Matrix[i][j] << " ";
+    //}
+    //cout << endl;
+  //}  
 }
  */
 
@@ -347,12 +353,15 @@ void BandMatrix2dSolver::print()
 }
 
 
-int BandMatrix2dSolver::test(bool prn)
+int BandMatrix2dSolver::test( bool prn)
 {
-  constexpr int n = 160; //vorher 30 bzw 160 40
-  constexpr int d = 3;
-  constexpr int bandShift = 28; //vorher 8 bzw 28 8 
+  constexpr int nKnotsX = 10;
+  constexpr int nKnotsY = 10;
 
+  constexpr int n = 4 * nKnotsX * nKnotsY; //vorher 30 bzw 160 40
+  constexpr int d = 3;
+  constexpr int bandShift = (nKnotsX-3)*4; //vorher 8 bzw 28 8 
+  
   // std::random_device rd;  // Will be used to obtain a seed for the random
   std::mt19937 gen(1); // Standard mersenne_twister_engine seeded with 1
   std::uniform_real_distribution<> uniform(-.999, .999);
@@ -386,6 +395,12 @@ int BandMatrix2dSolver::test(bool prn)
           A[i][j] = A[i][i] * A[j][j] * uniform(gen);
           if (j >= i + 8 && j < i+8+bandShift) A[i][j] = 0; //null setzen ---------+8 bis bandShift und bandShift +12-----------------------------------------
           if (j >= i+bandShift + 12 +8) A[i][j] = 0;
+          if(i % (bandShift/4) == 0) {
+            for (int k = 1; k < 5; k++ ) {
+              if (i+4+k <= n) A[i][i+4+k] = 0 ;
+              if (i+4+bandShift+8+k < n) A[i][i+4+bandShift+8+k] = 0;
+            }
+          }; 
           A[j][i] = A[i][j];  //symm
         }
       }
@@ -504,13 +519,177 @@ int BandMatrix2dSolver::test(bool prn)
 
   if (prn || !ok || !ok1d) {
     LOG(info) << std::defaultfloat;
-    LOG(info) << "\n\n Overall max diff " << maxDiff << "\n";
+   int ok1d = (maxDiff1d < 1.e-7);
+   LOG(info) << "\n\n Overall max diff " << maxDiff << "\n";
     LOG(info) << "\n\n Overall max diff 1d " << maxDiff1d << "\n";
     LOG(info) << "\n\n Overall max diff 1d New " << maxDiff1dNew << "\n";
     LOG(info) << " time " << duration.count() / nTries;
    LOG(info) << " time 1d " << duration1d.count() / nTries;
    LOG(info) << " time 1d New " << duration1dNew.count() / nTries;
     LOG(info) << " time multiplication " << durationMult.count() / nTries;
+  }
+  return ok;
+}
+
+
+int BandMatrix2dSolver::test2d(int nKnotsX, int nKnotsY, bool prn)
+{
+   int n = 4 * nKnotsX * nKnotsY; //vorher 30 bzw 160 40
+  constexpr int d = 3;
+  int bandShift = (nKnotsX-3)*4; //vorher 8 bzw 28 8 
+  
+  // std::random_device rd;  // Will be used to obtain a seed for the random
+  std::mt19937 gen(1); // Standard mersenne_twister_engine seeded with 1
+  std::uniform_real_distribution<> uniform(-.999, .999);
+
+  double maxDiff = -1.;
+  double maxDiff1dNew = -1.;
+
+  int nTries = 10000;
+
+  if( n >= 5*5*4 ) nTries = 10000;
+  if( n >= 10*10*4 ) nTries = 1000;
+  if( n >= 10*20*4 ) nTries = 10000; //war 100------------------------------------------------------------------------------------------------
+  if( n >= 20*20*4 ) nTries = 20;
+  if( n >= 30*30*4 ) nTries = 3;
+  if( n >= 40*40*4 ) nTries = 1;
+ 
+
+  auto tmpTime = std::chrono::high_resolution_clock::now();
+  auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(tmpTime - tmpTime); //to get ns
+  auto durationMult = duration;
+  auto duration1dNew = duration;
+
+  for (int iter = 0; iter < nTries; iter++) {
+
+    std::cout<<" versuch "<<iter<<std::endl;
+
+    std::vector<std::vector<double> >x(n);
+    std::vector< std::vector<double> > A(n);
+    {
+      for (int i = 0; i < n; i++) {
+        x[i].resize(d,0.);
+        A[i].resize(n,0.);
+        for (int j = 0; j < d; j++) {
+          x[i][j] = 1. * uniform(gen);
+        }
+      }
+      for (int i = 0; i < n; i++) {
+        A[i][i] = fabs(2. + uniform(gen));
+      }
+      for (int i = 0; i < n; i++) {
+        for (int j = i + 1; j < n; j++) {
+          A[i][j] = A[i][i] * A[j][j] * uniform(gen);
+          if (j >= i + 8 && j < i+8+bandShift) A[i][j] = 0; //null setzen ---------+8 bis bandShift und bandShift +12-----------------------------------------
+          if (j >= i+bandShift + 12 +8) A[i][j] = 0;
+          if(i % (bandShift/4) == 0) {
+            for (int k = 1; k < 5; k++ ) {
+              if (i+4+k <= n) A[i][i+4+k] = 0 ;
+              if (i+4+bandShift+8+k < n) A[i][i+4+bandShift+8+k] = 0;
+            }
+          }; 
+          A[j][i] = A[i][j];  //symm
+         }
+      }
+
+      for (int i = 0; i < n; i++) {
+        A[i][i] = A[i][i] * A[i][i];        
+      }
+      if (0&&prn && iter == nTries - 1) {  //beim letzten Durchgang die Matrix ausgeben
+        for (int i = 0; i < n; i++) {
+          LOG(info) << "";
+          for (int j = 0; j < n; j++) {
+            std::cout << std::fixed << std::setw(5) << std::setprecision(2) << A[i][j] << " ";
+          }
+        }
+        LOG(info) << "";
+      }
+    }
+
+    double b[n][d];
+    auto startMult = std::chrono::high_resolution_clock::now();    
+    for (int i = 0; i < n; i++) {
+      for (int k = 0; k < d; k++) {
+        b[i][k] = 0.;
+      }
+      for (int j = 0; j < n; j++) {
+        for (int k = 0; k < d; k++) {
+          b[i][k] += x[j][k] * A[i][j];
+        }
+      }      
+    }    
+    auto stopMult = std::chrono::high_resolution_clock::now();
+    durationMult += std::chrono::duration_cast<std::chrono::nanoseconds>(stopMult - startMult);
+
+    BandMatrix2dSolver sym(n, d, bandShift);
+    BandMatrixSolverNew sym1dNew(n,d,8+bandShift+12);
+
+    for (int i = 0; i < n; i++) {
+      for (int k = 0; k < d; k++) {
+        sym.B(i, k) = b[i][k];
+         sym1dNew.B(i,k) = b[i][k];
+     }
+      for (int j = i; j < n; j++) {
+        sym.A(i, j) = A[i][j];
+        sym.A(j, i) = A[i][j];
+        if(j<i+8+bandShift+12){  //-------wieso nochmal? ist doch schon ne Bandmatrix
+          sym1dNew.A(i,j)= A[i][j];
+        }
+     }
+    }
+
+    auto start = std::chrono::high_resolution_clock::now(); //Zeitstoppen 
+    sym.solve();
+    auto stop = std::chrono::high_resolution_clock::now();
+    duration += std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start);
+
+    auto start1dNew = std::chrono::high_resolution_clock::now();
+    sym1dNew.solve();
+    auto stop1dNew = std::chrono::high_resolution_clock::now();
+    duration1dNew += std::chrono::duration_cast<std::chrono::nanoseconds>(stop1dNew - start1dNew);
+
+    double diff = -1.;
+    for (int i = 0; i < n; i++) {
+      for (int k = 0; k < d; k++) {
+        double t = fabs(x[i][k] - sym.B(i, k));
+        if (diff < t || !finite(t)) {
+          diff = t;
+        }
+      }
+    }
+    if (maxDiff < diff || !finite(diff)) {
+      maxDiff = diff;
+    }
+
+    double diff1dNew = 0.;
+    for (int i = 0; i < n; i++) {
+      for (int k = 0; k < d; k++) {
+        double t = fabs(x[i][k] - sym1dNew.B(i, k));
+        if (diff1dNew < t || !finite(t)) {
+          diff1dNew = t;
+        }
+      }
+    }
+
+    if (maxDiff1dNew < diff1dNew || !finite(diff1dNew)) {
+      maxDiff1dNew = diff1dNew;
+    }
+
+
+    // LOG(info) << std::defaultfloat ;
+    // LOG(info) << "\n\n max diff " <<diff << "\n";
+  }
+
+  int ok = (maxDiff < 1.e-7);
+    int ok1d = (maxDiff1dNew < 1.e-7);
+
+  if (prn || !ok  || !ok1d ) {  
+     LOG(info) << std::defaultfloat;
+     LOG(info) << "\n Overall max diff " << maxDiff << "\n";
+     LOG(info) << "\n Overall max diff 1d New " << maxDiff1dNew << "\n";
+     LOG(info) << " time " << duration.count() / nTries / 1000. <<" us";
+     LOG(info) << " time 1d New " << duration1dNew.count() / nTries/ 1000. <<" us";
+      //LOG(info) << " time multiplication " << durationMult.count() / nTries;
   }
   return ok;
 }

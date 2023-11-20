@@ -24,15 +24,15 @@
 #include <thread>
 #include <mutex>
 
-constexpr int nThreads = 60;
+constexpr int nThreads = 1;
 
 constexpr int nKnotsU = 4;
 constexpr int nKnotsV = 4;
 constexpr int nKnots = nKnotsU * nKnotsV;
 
-constexpr int nIntervalsU = nKnotsU - 1;
-constexpr int nIntervalsV = nKnotsV - 1;
-constexpr int nIntervals = nIntervalsU * nIntervalsV;
+constexpr int nCellsU = nKnotsU - 1;
+constexpr int nCellsV = nKnotsV - 1;
+constexpr int nCells = nCellsU * nCellsV;
 
 constexpr int nPointsMax = 16;
 constexpr int modulo = nPointsMax + 1;
@@ -72,19 +72,19 @@ int anna2d()
   std::cout << "Test interpolation.." << std::endl;
 
   long double combTotal = 1.;
-  for (int i = 0; i < nIntervals; i++) {
+  for (int i = 0; i < nCells; i++) {
     combTotal *= modulo;
   }
 
-  int cellCut[nIntervalsU][nIntervalsV];
+  int cellCut[nCellsU][nCellsV];
 
-  for (int i = 0, iexp = 1; i < nIntervalsU; i++) {
-    for (int j = 0; j < nIntervalsV; j++, iexp *= modulo) {
+  for (int i = 0, iexp = 1; i < nCellsU; i++) {
+    for (int j = 0; j < nCellsV; j++, iexp *= modulo) {
       cellCut[i][j] = iexp;
     }
   }
 
-  long unsigned int combStart = (long unsigned int) 0.25 * combTotal;
+  long unsigned int combStart = (long unsigned int)0.25 * combTotal;
   std::mutex mtx;
 
   auto myThread = [&](int iThread) {
@@ -111,8 +111,8 @@ int anna2d()
 
       int nPointsTotal = 0;
 
-      for (int i = 0; i < nIntervalsU; i++) {
-        for (int j = 0; j < nIntervalsV; j++) {
+      for (int i = 0; i < nCellsU; i++) {
+        for (int j = 0; j < nCellsV; j++) {
           nPointsTotal += (comb / cellCut[i][j]) % modulo;
         }
       }
@@ -128,8 +128,8 @@ int anna2d()
       pu.clear();
       pv.clear();
 
-      for (int iCell = 0; iCell < nIntervalsU; iCell++) {
-        for (int jCell = 0; jCell < nIntervalsV; jCell++) {
+      for (int iCell = 0; iCell < nCellsU; iCell++) {
+        for (int jCell = 0; jCell < nCellsV; jCell++) {
 
           int nPoints = (comb / cellCut[iCell][jCell]) % modulo;
           int nPoints1D = (int)ceil(sqrt(nPoints));
@@ -147,53 +147,82 @@ int anna2d()
         }
       }
 
-      assert(nPointsTotal == (int) pu.size());
+      assert(nPointsTotal == (int)pu.size());
 
       bool constructionOk = helper.approximateDataPoints(spline, 0., nKnotsU - 1, 0., nKnotsV - 1, &pu[0], &pv[0], &pF[0], pu.size());
 
       //----------------------------------------------anna test ---------------------------------------------
-      bool testAnna = 0;
+
+      int testAnna = 2; // 0 : geht nicht, 1: geht, 2: unbekannt
+
       {
-        constructionOk = helper.approximateDataPoints(spline, 0, nKnots - 1, &vu[0], &vy[0], vu.size());
+        int nDataPerCell[nCellsU][nCellsV] = {0}; //bei drei plus 1 anstatt plus 2? Testprogramm schreiben, verschiedene Szenarien durchrechnen
+        int nDataPerKnot[nKnotsU][nKnotsV] = {0};             // <---
 
-      std::vector<int> nDataPerInterval(nIntervals, 0);            //bei drei plus 1 anstatt plus 2? Testprogramm schreiben, verschiedene Szenarien durchrechnen
-      std::vector<int> nDataPerKnot(spline.getNumberOfKnots(), 0); // <---
-
-      for (int i = 0; i < vu.size(); i++) { //wir gehen die Punkte durch
-        int interval = spline.getLeftKnotIndexForU(vu[i]); //is the data point in this interval? like this, a border point is only counted for the first interval
-        nDataPerInterval[interval]++;
-      }
-      int corner[] = [0, nKnotsU-1, nKnots-nKnotsU-1, nKnots-1];
-      for (int i = 0; i < 4; i++) {
-      if (nDataPerInterval[corner[i]] < 4)
-      {
-        testAnna = 0;
-        cout << "the corners do not have enough knots" << endl; //Problem with threads?
-      }
-      }
-
-      for (int i = 0; i < nIntervals; i++) {
-        int s0 = 2 - nDataPerKnot[i];
-        int n0 = std::min(s0, nDataPerInterval[i]);
-        int n1 = std::min(2, nDataPerInterval[i] - n0);
-        nDataPerKnot[i] += n0;
-        nDataPerKnot[i + 1] = n1;
-      }
-
-      for (int i = 0; i < nKnots; i++) {
-        if (nDataPerKnot[i] < 2) {
-          testAnna = 0;
-          cout << "Knot " << i << " has only " << nDataPerKnot[i] << " data points" << endl;
-          //vector mit tuple Problemstelle und Anzahl Punkte?
+        for (int i = 0; i < pu.size(); i++) {                      //wir gehen die Punkte durch
+          int iu = spline.getGridX1().getLeftKnotIndexForU(pu[i]); //is the data point in this Cell? like this, a border point is only counted for the first Cell
+          int iv = spline.getGridX2().getLeftKnotIndexForU(pv[i]); //is the data point in this Cell? like this, a border point is only counted for the first Cell
+          nDataPerCell[iu][iv]++;
         }
-      }
+
+        int cornerCells[4][2] = {{0, 0}, {nCellsU - 1, 0}, {0, nCellsV - 1}, {nCellsU - 1, nCellsV - 1}};
+        int cornerKnoten[4][2] = {{0, 0}, {nKnotsU - 1, 0}, {0, nKnotsV - 1}, {nKnotsU - 1, nKnotsV - 1}};
+
+        for (int i = 0; i < 4; i++) {
+          if (nDataPerCell[cornerCells[i][0]][cornerCells[i][1]] < 4) {
+            testAnna = 0;
+            cout << "the corners do not have enough knots" << endl; //Problem with threads?
+            break;
+          }
+          nDataPerKnot[cornerKnoten[i][0]][cornerKnoten[i][1]] = 4;
+          nDataPerCell[cornerCells[i][0]][cornerCells[i][1]] -= 4;
+        }
+        //damit keine wertvollen data points verschwendet werden, wenn nebenan eine Cell >16 data points hat
+        for (int i=0; i<nCellsU; i++){ // -> aber die Corner haben schon 4 weniger
+          for (int j=0; j<nCellsV; j++){
+            if (nDataPerCell[i][j] >= 16) { //umliegende Knoten füllen
+              nDataPerKnot[i][j] = 4;
+              nDataPerKnot[i][j+1] = 4;
+              nDataPerKnot[i+1][j] = 4;
+              nDataPerKnot[i+1][j+1] = 4;
+              }                                //nDataPerCell ändern? 
+          }
+        }
+        for (int i = 0; i < nCellsU; i++){
+          for (int j = 0; j < nCellsV; j++){
+            if (nDataPerCell<4){
+              n
+            }
+            
+          }
+          
+        }
+        
 
 
+
+        /*
+        for (int i = 0; i < 2 * nKnotsU + 2 * nKnotsV; i++) { //den Rand abgehen
+          int s0 = 4 - nDataPerKnot[i];
+          int n0 = std::min(s0, nDataPerCell[i]);
+          int n1 = std::min(4, nDataPerCell[i] - n0);
+          nDataPerKnot[i] += n0;
+          nDataPerKnot[i + 1] = n1;
+        }
+
+        for (int i = 0; i < nKnots; i++) {
+          if (nDataPerKnot[i] < 2) {
+            testAnna = 0;
+            cout << "Knot " << i << " has only " << nDataPerKnot[i] << " data points" << endl;
+            //vector mit tuple Problemstelle und Anzahl Punkte?
+          }
+        }
+        */
       }
 
       //-----------------------------------------------end of anna's test -------------------------------------------------
 
-      if (printMode != 1 || testAnna == constructionOk) {
+      if (printMode != 1 || testAnna == constructionOk || testAnna == 2) {
         continue;
       }
 
@@ -208,12 +237,12 @@ int anna2d()
 
       std::cout << "thread " << iThread << " combination " << comb << " n points " << nPointsTotal << std::endl;
 
-      for (int i = 0, i6 = 1; i < nIntervals; i++, i6 *= modulo) {
-        int iCell = i / nIntervalsU;
-        int jCell = i % nIntervalsU;
+      for (int i = 0, i6 = 1; i < nCells; i++, i6 *= modulo) {
+        int iCell = i / nCellsU;
+        int jCell = i % nCellsU;
         int nPoints = (comb / i6) % modulo;
         std::cout << nPoints << " ";
-        if (jCell == nIntervalsU - 1) {
+        if (jCell == nCellsU - 1) {
           std::cout << std::endl;
         }
       }

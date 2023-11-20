@@ -68,6 +68,7 @@ class BandMatrix2dSolver
 
   /// Test the class functionality. Returns 1 when ok, 0 when not ok
   static int test(bool prn = 0);
+  static int test2d(int nKnotsX=10, int nKnotsY=20, bool prn = 0);
 
  bool isFailed = false;
 
